@@ -27,7 +27,6 @@ int parse_config(stbtt_pack_range **ranges, float font_size) {
 		int start_char;
 		int char_len;
         sscanf(buffer, "%d %d", &start_char, &char_len);
-		printf("%d\n", n_ranges);
 		
 		stbtt_packedchar *charmap_data = (stbtt_packedchar*)malloc(sizeof(stbtt_packedchar) * char_len);
 		
