@@ -6,17 +6,6 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/stb_image_write.h"
 
-struct {
-    int size;
-    unsigned int atlas_width;
-    unsigned int atlas_height;
-    unsigned int oversample_x;
-    unsigned int oversample_y;
-    unsigned int first_char;
-    unsigned int char_count;
-    stbtt_packedchar *char_info;
-} font_data;
-
 int main(int argc, char **argv) {
 	if (argc != 8) { printf("Usage: glyphgen.exe (-b/-i) atlas_width atlas_height size font.ttf (atlas.txt/atlas.png) data.txt\n"); return 0; }
 	int type = 0;
@@ -32,20 +21,50 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	
-	int ATLAS_WIDTH = atoi(argv[2]);
-	int ATLAS_HEIGHT = atoi(argv[3]);
+	int atlas_width = atoi(argv[2]);
+	int atlas_height = atoi(argv[3]);
 	
-	font_data.size = atoi(argv[4]);
-    font_data.atlas_width = ATLAS_WIDTH;
-    font_data.atlas_height = ATLAS_HEIGHT;
-    font_data.oversample_x = 2;
-    font_data.oversample_y = 2;
-    font_data.first_char = ' ';
-    font_data.char_count = '~' - ' ';
+	float font_size = atof(argv[4]);
 	
-	font_data.char_info = (stbtt_packedchar*)malloc(sizeof(stbtt_packedchar) * font_data.char_count);
+    int oversample_x = 2;
+    int oversample_y = 2;
+	
+    stbtt_packedchar *ascii_data = (stbtt_packedchar*)malloc(sizeof(stbtt_packedchar) * 96);
+    stbtt_packedchar *russian_data = (stbtt_packedchar*)malloc(sizeof(stbtt_packedchar) * 64);
+    stbtt_packedchar *yo_data = (stbtt_packedchar*)malloc(sizeof(stbtt_packedchar) * 1);
+    stbtt_packedchar *yo_small_data = (stbtt_packedchar*)malloc(sizeof(stbtt_packedchar) * 1);
+
+	stbtt_pack_range ranges[4];
+    // ASCII
+    ranges[0].font_size = font_size;
+    ranges[0].first_unicode_codepoint_in_range = 32;
+	ranges[0].array_of_unicode_codepoints = NULL;
+    ranges[0].num_chars = 96;
+    ranges[0].chardata_for_range = ascii_data;
+
+    // rus
+    ranges[1].font_size = font_size;
+    ranges[1].first_unicode_codepoint_in_range = 0x0410; 
+	ranges[1].array_of_unicode_codepoints = NULL;
+    ranges[1].num_chars = 64; 
+    ranges[1].chardata_for_range = russian_data;
+
+    // YO
+    ranges[2].font_size = font_size;
+    ranges[2].first_unicode_codepoint_in_range = 0x0401;
+	ranges[2].array_of_unicode_codepoints = NULL;
+    ranges[2].num_chars = 1;
+    ranges[2].chardata_for_range = yo_data;
+
+    // yo
+    ranges[3].font_size = font_size;
+    ranges[3].first_unicode_codepoint_in_range = 0x0451;
+	ranges[3].array_of_unicode_codepoints = NULL;
+    ranges[3].num_chars = 1;
+    ranges[3].chardata_for_range = yo_small_data;
+	
 	stbtt_pack_context context;
-	unsigned char *atlas_data = (unsigned char*)malloc(ATLAS_WIDTH * ATLAS_HEIGHT);
+	unsigned char *atlas_data = (unsigned char*)malloc(atlas_width * atlas_height);
 	
 	FILE *font_file = fopen(argv[5], "rb");
 	if (font_file == NULL) { printf("cant open file\n"); return 1; }
@@ -64,19 +83,21 @@ int main(int argc, char **argv) {
     }
 	fclose(font_file);
 	
-	if (!stbtt_PackBegin(&context, atlas_data, font_data.atlas_width, font_data.atlas_height, 0, 1, NULL)) {
+	if (!stbtt_PackBegin(&context, atlas_data, atlas_width, atlas_height, 0, 1, NULL)) {
 		printf("failed to init stb pack\n");
 		return 1;
 	}
-	stbtt_PackSetOversampling(&context, font_data.oversample_x, font_data.oversample_y);
-    if (!stbtt_PackFontRange(&context, font_bin, 0, font_data.size, font_data.first_char, font_data.char_count, font_data.char_info)) {
+	stbtt_PackSetOversampling(&context, oversample_x, oversample_y);
+
+    if (!stbtt_PackFontRanges(&context, font_bin, 0, ranges, 4)) {
         printf("failed to pack font\n");
 		return 1;
-	}
+    }
+
 	stbtt_PackEnd(&context);
 	
 	if (type == 1) {
-		if (!stbi_write_png(argv[6], ATLAS_WIDTH, ATLAS_HEIGHT, 1, atlas_data, ATLAS_WIDTH)) {
+		if (!stbi_write_png(argv[6], atlas_width, atlas_height, 1, atlas_data, atlas_width)) {
 			printf("failed to write to png\n");
 			return 1;
 		}
@@ -89,8 +110,8 @@ int main(int argc, char **argv) {
 			printf("error opening atlas file\n");
 			return 1;
 		}
-		fprintf(atlas_file, "unsigned char font_atlas[%d] = {\n", ATLAS_WIDTH * ATLAS_HEIGHT);
-		for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++) {
+		fprintf(atlas_file, "unsigned char font_atlas[%d] = {\n", atlas_width * atlas_height);
+		for (int i = 0; i < atlas_width * atlas_height; i++) {
 			fprintf(atlas_file, "0x%02x,", atlas_data[i]);
 			if (i % 10 == 0) { fprintf(atlas_file, "\n"); }
 		}
@@ -105,14 +126,40 @@ int main(int argc, char **argv) {
         printf("error opening data file\n");
         return 1;
     }
-	fprintf(data_file, "float font_data[%d] = {\n", font_data.char_count * 10);
-	for (int chr = 0; chr < font_data.char_count; chr++) {
+	fprintf(data_file, "float font_data[%d] = {\n", (96 + 64 + 1 + 1) * 10);
+	/* ASCII char data */
+	for (int chr = 0; chr < 96; chr++) {
 		stbtt_aligned_quad quad;
 		float offx = 0.0f, offy = 0.0f;
-		float xadv = font_data.char_info[chr].xadvance;
-		stbtt_GetPackedQuad(font_data.char_info, font_data.atlas_width, font_data.atlas_height, chr, &offx, &offy, &quad, 0);
+		float xadv = ascii_data[chr].xadvance;
+		stbtt_GetPackedQuad(ascii_data, atlas_width, atlas_height, chr, &offx, &offy, &quad, 0);
 		fprintf(data_file, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f,\n", xadv, offy, quad.x0, quad.x1, quad.y0, quad.y1, quad.s0, quad.s1, quad.t0, quad.t1);
 	}
+	/* rus char data */
+	for (int chr = 0; chr < 64; chr++) {
+		stbtt_aligned_quad quad;
+		float offx = 0.0f, offy = 0.0f;
+		float xadv = russian_data[chr].xadvance;
+		stbtt_GetPackedQuad(russian_data, atlas_width, atlas_height, chr, &offx, &offy, &quad, 0);
+		fprintf(data_file, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f,\n", xadv, offy, quad.x0, quad.x1, quad.y0, quad.y1, quad.s0, quad.s1, quad.t0, quad.t1);
+	}
+	/* YO char data */
+	{
+		stbtt_aligned_quad quad;
+		float offx = 0.0f, offy = 0.0f;
+		float xadv = yo_data[0].xadvance;
+		stbtt_GetPackedQuad(yo_data, atlas_width, atlas_height, 0, &offx, &offy, &quad, 0);
+		fprintf(data_file, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f,\n", xadv, offy, quad.x0, quad.x1, quad.y0, quad.y1, quad.s0, quad.s1, quad.t0, quad.t1);
+	}
+	/* yo char data */
+	{
+		stbtt_aligned_quad quad;
+		float offx = 0.0f, offy = 0.0f;
+		float xadv = yo_small_data[0].xadvance;
+		stbtt_GetPackedQuad(yo_small_data, atlas_width, atlas_height, 0, &offx, &offy, &quad, 0);
+		fprintf(data_file, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f,\n", xadv, offy, quad.x0, quad.x1, quad.y0, quad.y1, quad.s0, quad.s1, quad.t0, quad.t1);
+	}
+
 	fprintf(data_file, "};\n");
 	printf("data saved!\n");
 	fclose(data_file);

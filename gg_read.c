@@ -1,14 +1,31 @@
 #include "gg_read.h"
 
-glyph_data gg_get_char_data(float *font_array, char c, float* cursor_x, float* cursor_y) {
-    int first_char = ' '; 
-    int char_index = c - first_char;
-	
+int gg_get_char_index(wchar_t ch) {
+    if (ch >= 32 && ch <= 127) {
+        int local_index = ch - 32;
+        return local_index;
+    }
+    
+    if (ch >= 0x0410 && ch <= 0x044F) {
+        int local_index = ch - 0x0410;
+        return (96 + local_index); 
+    }
+    
+    if (ch == 0x0401) {
+        return 160;
+    }
+    
+    if (ch == 0x0451) {
+        return 161;
+    }
+
+    return (' ' - 32); 
+}
+
+glyph_data gg_get_char_data(float *font_array, wchar_t ch, float* cursor_x, float* cursor_y) {
 	glyph_data glyph;
 
-    if (char_index < 0 || char_index >= 95) return glyph; 
-
-    int base_idx = char_index * 10;
+    int base_idx = gg_get_char_index(ch) * 10;
 
     float xadvance = font_array[base_idx + 0]; 
     float offy     = font_array[base_idx + 1];
