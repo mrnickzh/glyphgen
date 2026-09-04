@@ -1,25 +1,25 @@
 #include "gg_read.h"
 
 int gg_get_char_index(wchar_t ch) {
-    if (ch >= 32 && ch <= 127) {
-        int local_index = ch - 32;
-        return local_index;
-    }
-    
-    if (ch >= 0x0410 && ch <= 0x044F) {
-        int local_index = ch - 0x0410;
-        return (96 + local_index); 
-    }
-    
-    if (ch == 0x0401) {
-        return 160;
-    }
-    
-    if (ch == 0x0451) {
-        return 161;
-    }
+    if (ch >= 32 && ch <= 128) {
+    int local_index = ch - 32;
+    return (0 + local_index);
+	}
 
-    return (' ' - 32); 
+	if (ch >= 1040 && ch <= 1104) {
+		int local_index = ch - 1040;
+		return (96 + local_index);
+	}
+
+	if (ch >= 1025 && ch <= 1026) {
+		int local_index = ch - 1025;
+		return (160 + local_index);
+	}
+
+	if (ch >= 1105 && ch <= 1106) {
+		int local_index = ch - 1105;
+		return (161 + local_index);
+	}
 }
 
 glyph_data gg_get_char_data(float *font_array, wchar_t ch, float* cursor_x, float* cursor_y) {
