@@ -3,8 +3,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "lib/stb_truetype.h"
 
-#define ATLAS_WIDTH 256
-#define ATLAS_HEIGHT 256
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "lib/stb_image_write.h"
 
 struct {
     int size;
@@ -18,9 +18,24 @@ struct {
 } font_data;
 
 int main(int argc, char **argv) {
-	if (argc != 4) { printf("Usage: glyphgen.exe font.ttf atlas.txt data.txt\n"); return 0; }
+	if (argc != 8) { printf("Usage: glyphgen.exe (-b/-i) atlas_width atlas_height size font.ttf (atlas.txt/atlas.png) data.txt\n"); return 0; }
+	int type = 0;
 	
-	font_data.size = 10;
+	if (strcmp(argv[1], "-b") == 0) {
+		type = 0;
+	}
+	else if (strcmp(argv[1], "-i") == 0) {
+		type = 1;
+	}
+	else {
+		printf("Wrong output type, pick either -b for binary or -i for image");
+		return 1;
+	}
+	
+	int ATLAS_WIDTH = atoi(argv[2]);
+	int ATLAS_HEIGHT = atoi(argv[3]);
+	
+	font_data.size = atoi(argv[4]);
     font_data.atlas_width = ATLAS_WIDTH;
     font_data.atlas_height = ATLAS_HEIGHT;
     font_data.oversample_x = 2;
@@ -30,9 +45,9 @@ int main(int argc, char **argv) {
 	
 	font_data.char_info = (stbtt_packedchar*)malloc(sizeof(stbtt_packedchar) * font_data.char_count);
 	stbtt_pack_context context;
-	unsigned char atlas_data[ATLAS_WIDTH * ATLAS_HEIGHT];
+	unsigned char *atlas_data = (unsigned char*)malloc(ATLAS_WIDTH * ATLAS_HEIGHT);
 	
-	FILE *font_file = fopen(argv[1], "rb");
+	FILE *font_file = fopen(argv[5], "rb");
 	if (font_file == NULL) { printf("cant open file\n"); return 1; }
 	fseek(font_file, 0, SEEK_END);
 	long file_size = ftell(font_file);
@@ -49,7 +64,7 @@ int main(int argc, char **argv) {
     }
 	fclose(font_file);
 	
-	if (!stbtt_PackBegin(&context, &atlas_data[0], font_data.atlas_width, font_data.atlas_height, 0, 1, NULL)) {
+	if (!stbtt_PackBegin(&context, atlas_data, font_data.atlas_width, font_data.atlas_height, 0, 1, NULL)) {
 		printf("failed to init stb pack\n");
 		return 1;
 	}
@@ -60,23 +75,32 @@ int main(int argc, char **argv) {
 	}
 	stbtt_PackEnd(&context);
 	
-	FILE *atlas_file;
-	atlas_file = fopen(argv[2], "w");
-	if (atlas_file == NULL) {
-        printf("error opening atlas file\n");
-        return 1;
-    }
-	fprintf(atlas_file, "unsigned char font_atlas[%d] = {\n", ATLAS_WIDTH * ATLAS_HEIGHT);
-	for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++) {
-		fprintf(atlas_file, "0x%02x,", atlas_data[i]);
-		if (i % 10 == 0) { fprintf(atlas_file, "\n"); }
+	if (type == 1) {
+		if (!stbi_write_png(argv[6], ATLAS_WIDTH, ATLAS_HEIGHT, 1, atlas_data, ATLAS_WIDTH)) {
+			printf("failed to write to png\n");
+			return 1;
+		}
+		printf("png saved!\n");
 	}
-	fprintf(atlas_file, "};\n");
-	printf("atlas saved!\n");
-	fclose(atlas_file);
+	else {
+		FILE *atlas_file;
+		atlas_file = fopen(argv[6], "w");
+		if (atlas_file == NULL) {
+			printf("error opening atlas file\n");
+			return 1;
+		}
+		fprintf(atlas_file, "unsigned char font_atlas[%d] = {\n", ATLAS_WIDTH * ATLAS_HEIGHT);
+		for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++) {
+			fprintf(atlas_file, "0x%02x,", atlas_data[i]);
+			if (i % 10 == 0) { fprintf(atlas_file, "\n"); }
+		}
+		fprintf(atlas_file, "};\n");
+		printf("atlas saved!\n");
+		fclose(atlas_file);
+	}
 	
 	FILE *data_file;
-	data_file = fopen(argv[3], "w");
+	data_file = fopen(argv[7], "w");
 	if (data_file == NULL) {
         printf("error opening data file\n");
         return 1;
