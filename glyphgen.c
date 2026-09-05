@@ -43,7 +43,7 @@ int parse_config(stbtt_pack_range **ranges, float font_size) {
 	return n_ranges;
 }
 
-void gen_code(stbtt_pack_range *ranges, int n_ranges) {
+int gen_code(stbtt_pack_range *ranges, int n_ranges) {
 	char *if_template = "\n"
     "if (ch >= %d && ch <= %d) {\n"
     "    int local_index = ch - %d;\n"
@@ -70,6 +70,7 @@ void gen_code(stbtt_pack_range *ranges, int n_ranges) {
 	}
 	
 	fclose(file_ptr);
+	return atlas_offset + char_len;
 }
 
 int main(int argc, char **argv) {
@@ -173,9 +174,12 @@ int main(int argc, char **argv) {
         printf("error opening data file\n");
         return 1;
     }
+	
+	int arr_len = gen_code(ranges, n_ranges);
+	printf("code generated!\n");
 
 	if (!format) {
-		fprintf(data_file, "float font_data[%d] = {\n", (96 + 64 + 1 + 1) * 10);
+		fprintf(data_file, "float font_data[%d] = {\n", arr_len * 10);
 	}
 	
 	for (int i = 0; i < n_ranges; i++)
@@ -197,9 +201,6 @@ int main(int argc, char **argv) {
 	}
 	printf("data saved!\n");
 	fclose(data_file);
-	
-	gen_code(ranges, n_ranges);
-	printf("code generated!\n");
 	
 	return 0;
 }
